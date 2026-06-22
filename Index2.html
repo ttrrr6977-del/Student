@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal | LMS</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #fff; --text: #1e293b; --danger: #ef4444; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: var(--text); }
+        
+        /* Auth Overlay */
+        #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .auth-box { background: var(--card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+        .auth-box input { width: 100%; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+        .auth-box button { width: 100%; padding: 0.75rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;}
+
+        /* Header & Nav */
+        header { background: var(--primary); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header-actions { display: flex; align-items: center; gap: 1.5rem; position: relative; }
+        .notification-icon { cursor: pointer; position: relative; }
+        .badge { position: absolute; top: -5px; right: -8px; background: var(--danger); color: white; font-size: 0.7rem; padding: 2px 5px; border-radius: 50%; display: none; }
+        .notif-dropdown { position: absolute; top: 30px; right: 0; background: white; color: var(--text); width: 250px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: none; flex-direction: column; z-index: 100; max-height: 300px; overflow-y: auto;}
+        .notif-item { padding: 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+
+        /* Subjects Filter */
+        .subjects { display: flex; gap: 1rem; margin-bottom: 2rem; overflow-x: auto; padding-bottom: 0.5rem; }
+        .subject-chip { padding: 0.5rem 1.5rem; background: #e2e8f0; border-radius: 99px; cursor: pointer; white-space: nowrap; transition: 0.2s; }
+        .subject-chip.active, .subject-chip:hover { background: var(--primary); color: white; }
+
+        /* Live Section Layout */
+        #live-container { display: none; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 3rem; background: #111827; padding: 1.5rem; border-radius: 12px;}
+        @media (max-width: 768px) { #live-container { grid-template-columns: 1fr; } }
+        .video-player { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 8px; }
+        #student-video { width: 100%; height: 100%; border-radius: 8px; }
+        
+        /* Chat Box */
+        .chat-box { background: white; border-radius: 8px; display: flex; flex-direction: column; height: 100%; max-height: 400px; }
+        .chat-messages { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+        .chat-input { display: flex; border-top: 1px solid #e2e8f0; }
+        .chat-input input { margin: 0; border: none; border-radius: 0; border-bottom-left-radius: 8px; width: 100%; padding: 0.75rem;}
+        .chat-input button { border: none; background: var(--primary); color: white; padding: 0 1rem; border-bottom-right-radius: 8px; cursor: pointer;}
+        .msg { background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 8px; width: fit-content; max-width: 90%; }
+        .msg.me { background: #dbeafe; align-self: flex-end; }
+        .msg strong { display: block; font-size: 0.8rem; color: #64748b; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>Welcome to Student Portal</h2>
+            <p style="margin-bottom: 1.5rem; color: #64748b;">Please login to continue</p>
+            <input type="text" id="student-name" placeholder="Enter your full name">
+            <button onclick="login()">Enter Portal</button>
+        </div>
+    </div>
+
+    <header>
+        <h1><i class="fa-solid fa-graduation-cap"></i> Student Portal</h1>
+        <div class="header-actions">
+            <div class="notification-icon" onclick="toggleNotifs()">
+                <i class="fa-solid fa-bell fa-lg"></i>
+                <span class="badge" id="notif-badge">0</span>
+                <div class="notif-dropdown" id="notif-dropdown"></div>
+            </div>
+            <span id="display-name">Guest</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="subjects" id="subject-filters">
+            <div class="subject-chip active" onclick="filterSubject('All')">All Subjects</div>
+            <div class="subject-chip" onclick="filterSubject('Computer Science')">Computer Science</div>
+            <div class="subject-chip" onclick="filterSubject('Mathematics')">Mathematics</div>
+            <div class="subject-chip" onclick="filterSubject('Physics')">Physics</div>
+            <div class="subject-chip" onclick="filterSubject('Literature')">Literature</div>
+            <div class="subject-chip" onclick="filterSubject('History')">History</div>
+        </div>
+
+        <h2 id="live-header" style="display:none; margin-bottom: 1rem; color: var(--danger);"><i class="fa-solid fa-circle-play"></i> LIVE NOW: <span id="live-title"></span></h2>
+        
+        <div id="live-container">
+            <div class="video-player">
+                <video id="student-video" autoplay controls playsinline></video>
+            </div>
+            <div class="chat-box">
+                <div style="padding: 1rem; background: var(--bg); border-bottom: 1px solid #e2e8f0; font-weight: bold; border-top-left-radius: 8px; border-top-right-radius: 8px;">Live Chat</div>
+                <div class="chat-messages" id="chat-messages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input-text" placeholder="Chat here...">
+                    <button onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = localStorage.getItem('lms_user');
+        let currentSubject = 'All';
+        const peer = new Peer();
+
+        // --- Authentication ---
+        if (currentUser) {
+            document.getElementById('auth-overlay').style.display = 'none';
+            document.getElementById('display-name').innerText = currentUser;
+            initPortal();
+        }
+
+        function login() {
+            const name = document.getElementById('student-name').value.trim();
+            if(!name) return alert("Please enter your name");
+            localStorage.setItem('lms_user', name);
+            currentUser = name;
+            document.getElementById('auth-overlay').style.display = 'none';
+            document.getElementById('display-name').innerText = currentUser;
+            initPortal();
+        }
+
+        function initPortal() {
+            checkLive();
+            checkNotifications();
+            loadChat();
+        }
+
+        // --- Subject Filtering ---
+        function filterSubject(subject) {
+            currentSubject = subject;
+            document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            checkLive(); // Re-check if a live class matches the filter
+        }
+
+        // --- Notifications ---
+        function checkNotifications() {
+            const scheduled = JSON.parse(localStorage.getItem('lms_scheduled') || '[]');
+            const live = JSON.parse(localStorage.getItem('lms_live') || '{"isActive": false}');
+            const dropdown = document.getElementById('notif-dropdown');
+            const badge = document.getElementById('notif-badge');
+            
+            dropdown.innerHTML = '';
+            let count = 0;
+
+            if (live.isActive) {
+                dropdown.innerHTML += `<div class="notif-item" style="color: var(--danger); font-weight:bold;">LIVE NOW: ${live.subject} - ${live.topic}</div>`;
+                count++;
+            }
+
+            scheduled.reverse().forEach(s => {
+                dropdown.innerHTML += `<div class="notif-item">Scheduled: ${s.subject} <br><small>${new Date(s.time).toLocaleString()}</small></div>`;
+                count++;
+            });
+
+            if(count > 0) {
+                badge.style.display = 'block';
+                badge.innerText = count;
+            } else {
+                badge.style.display = 'none';
+                dropdown.innerHTML = '<div class="notif-item">No new notifications</div>';
+            }
+        }
+
+        function toggleNotifs() {
+            const dp = document.getElementById('notif-dropdown');
+            dp.style.display = dp.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // --- Live System & Video ---
+        function checkLive() {
+            const live = JSON.parse(localStorage.getItem('lms_live') || '{"isActive": false}');
+            const container = document.getElementById('live-container');
+            const header = document.getElementById('live-header');
+
+            // Only show live stream if we are on 'All Subjects' or the subject matches
+            if (live.isActive && (currentSubject === 'All' || currentSubject === live.subject)) {
+                container.style.display = 'grid';
+                header.style.display = 'block';
+                document.getElementById('live-title').innerText = `${live.subject}: ${live.topic}`;
+                peer.connect('nexus-live-room');
+            } else {
+                container.style.display = 'none';
+                header.style.display = 'none';
+            }
+            checkNotifications();
+        }
+
+        peer.on('call', (call) => {
+            call.answer();
+            call.on('stream', (teacherStream) => {
+                document.getElementById('student-video').srcObject = teacherStream;
+            });
+        });
+
+        // --- Chat System ---
+        function sendMessage() {
+            const input = document.getElementById('chat-input-text');
+            const text = input.value.trim();
+            if(!text) return;
+
+            const chat = JSON.parse(localStorage.getItem('lms_chat') || '[]');
+            chat.push({ sender: currentUser, text: text, isTeacher: false });
+            localStorage.setItem('lms_chat', JSON.stringify(chat));
+            
+            input.value = '';
+            loadChat();
+        }
+
+        function loadChat() {
+            const chat = JSON.parse(localStorage.getItem('lms_chat') || '[]');
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = '';
+            chat.forEach(msg => {
+                const isMe = msg.sender === currentUser;
+                const div = document.createElement('div');
+                div.className = `msg ${isMe ? 'me' : ''}`;
+                div.innerHTML = `<strong>${msg.sender}</strong> ${msg.text}`;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Sync tabs automatically
+        window.addEventListener('storage', (e) => {
+            if(e.key === 'lms_live' || e.key === 'lms_scheduled') checkLive();
+            if(e.key === 'lms_chat') loadChat();
+        });
+    </script>
+</body>
+</html>
